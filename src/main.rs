@@ -1,4 +1,6 @@
 mod application;
+mod renderer;
+mod world;
 
 use crate::application::Application;
 

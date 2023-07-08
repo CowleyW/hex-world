@@ -3,11 +3,15 @@ use cgmath::{InnerSpace, Rotation3};
 use image::GenericImageView;
 use wgpu::include_wgsl;
 use wgpu::util::DeviceExt;
-use winit::event::WindowEvent;
 use winit::window::Window;
-use crate::application::camera::{Camera, CameraController, CameraUniform};
-use crate::application::instance::{Instance, InstanceRaw};
-use crate::application::texture::Texture;
+use crate::renderer::instance::{Instance, InstanceRaw};
+use crate::renderer::texture::Texture;
+use crate::renderer::camera::{Camera, CameraUniform};
+use crate::world::World;
+
+mod texture;
+mod instance;
+pub(crate) mod camera;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -51,12 +55,12 @@ impl Vertex {
     }
 }
 
-pub struct Context {
+pub struct Renderer {
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
+    size: winit::dpi::PhysicalSize<u32>,
     window: Window,
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -67,13 +71,12 @@ pub struct Context {
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    camera_controller: CameraController,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture
 }
 
-impl Context {
+impl Renderer {
     pub fn window(&self) -> &Window {
         &self.window
     }
@@ -189,7 +192,6 @@ impl Context {
             0.1,
             100.0
         );
-        let camera_controller = CameraController::new(0.2);
 
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
@@ -300,7 +302,6 @@ impl Context {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
-            camera_controller,
             instances,
             instance_buffer,
             depth_texture
@@ -317,8 +318,8 @@ impl Context {
         }
     }
 
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
-        self.camera_controller.process_events(event)
+    pub fn recreate(&mut self) {
+        self.surface.configure(&self.device, &self.config);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -373,9 +374,13 @@ impl Context {
         Ok(())
     }
 
-    pub fn update(&mut self) {
-        self.camera_controller.update_camera(&mut self.camera);
+    pub fn update(&mut self, world: &World) {
+        world.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+    }
+
+    pub fn set_window_title(&mut self, title: &str) {
+        self.window.set_title(title);
     }
 }
